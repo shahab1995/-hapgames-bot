@@ -38,7 +38,7 @@ async def start_handler(message: types.Message, state: FSMContext):
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add("سفارش جدید", "گزارش مشکل")
     await message.answer("به ربات هُپ گیمز خوش اومدی!")
-یکی از گزینه‌ها رو انتخاب کن:", reply_markup=keyboard)
+یکی از گزینه‌ها رو انتخاب کن:",( reply_markup=keyboard)
     await OrderForm.choosing_type.set()
 
 @dp.message_handler(lambda msg: msg.text in ["سفارش جدید", "گزارش مشکل"], state=OrderForm.choosing_type)
