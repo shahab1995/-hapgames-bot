@@ -1,6 +1,6 @@
 import logging
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InputFile
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -19,7 +19,7 @@ dp = Dispatcher(bot, storage=storage)
 available_games = ["Unmatched", "Virus", "Masquerade", "You've Got Crabs", "محصولات جانبی"]
 # کل بازی‌ها برای گزارش مشکل
 all_games = ["Unmatched", "Virus", "Masquerade", "You've Got Crabs", "Downforce", 
-             "قهرمانان سرگردان", "Coloretto", "Point Salad", "Antidote", "محصولات جانبی"]
+            "قهرمانان سرگردان", "Coloretto", "Point Salad", "Antidote", "محصولات جانبی"]
 
 class OrderForm(StatesGroup):
     choosing_type = State()
@@ -45,14 +45,17 @@ async def choose_type(message: types.Message, state: FSMContext):
     await state.update_data(order_type=message.text)
     games = available_games if message.text == "سفارش جدید" else all_games
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    keyboard.add(*games).add("انصراف")
+    keyboard.add(*games)
+    keyboard.add("انصراف")
     await message.answer("بازی مورد نظر رو انتخاب کن:", reply_markup=keyboard)
     await OrderForm.choosing_game.set()
 
 @dp.message_handler(lambda msg: msg.text in available_games + all_games, state=OrderForm.choosing_game)
 async def choose_game(message: types.Message, state: FSMContext):
     await state.update_data(game=message.text)
-    await message.answer("نام و نام خانوادگی:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("انصراف"))
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("نام و نام خانوادگی:", reply_markup=keyboard)
     await OrderForm.entering_name.set()
 
 @dp.message_handler(state=OrderForm.entering_name)
@@ -61,7 +64,9 @@ async def enter_name(message: types.Message, state: FSMContext):
         await cancel_handler(message, state)
         return
     await state.update_data(name=message.text)
-    await message.answer("شماره تماس:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("انصراف"))
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("شماره تماس:", reply_markup=keyboard)
     await OrderForm.entering_phone.set()
 
 @dp.message_handler(state=OrderForm.entering_phone)
@@ -70,7 +75,108 @@ async def enter_phone(message: types.Message, state: FSMContext):
         await cancel_handler(message, state)
         return
     await state.update_data(phone=message.text)
-    await message.answer("استان:", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("انصراف"))
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("استان:", reply_markup=keyboard)
     await OrderForm.entering_province.set()
 
-@dp
+@dp.message_handler(state=OrderForm.entering_province)
+async def enter_province(message: types.Message, state: FSMContext):
+    if message.text == "انصراف":
+        await cancel_handler(message, state)
+        return
+    await state.update_data(province=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("شهر:", reply_markup=keyboard)
+    await OrderForm.entering_city.set()
+
+@dp.message_handler(state=OrderForm.entering_city)
+async def enter_city(message: types.Message, state: FSMContext):
+    if message.text == "انصراف":
+        await cancel_handler(message, state)
+        return
+    await state.update_data(city=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("کد پستی:", reply_markup=keyboard)
+    await OrderForm.entering_postal_code.set()
+
+@dp.message_handler(state=OrderForm.entering_postal_code)
+async def enter_postal_code(message: types.Message, state: FSMContext):
+    if message.text == "انصراف":
+        await cancel_handler(message, state)
+        return
+    await state.update_data(postal_code=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer("آدرس کامل:", reply_markup=keyboard)
+    await OrderForm.entering_address.set()
+
+@dp.message_handler(state=OrderForm.entering_address)
+async def enter_address(message: types.Message, state: FSMContext):
+    if message.text == "انصراف":
+        await cancel_handler(message, state)
+        return
+    await state.update_data(address=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("انصراف")
+    await message.answer(
+        "در صورت وجود عکس از مشکل، لطفاً ارسال کن یا بزن روی انصراف.",
+        reply_markup=keyboard
+    )
+    await OrderForm.sending_photo.set()
+
+@dp.message_handler(content_types=['photo'], state=OrderForm.sending_photo)
+async def get_photo(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    file_id = message.photo[-1].file_id
+    caption = (
+        f"درخواست جدید:\n"
+        f"نوع: {data.get('order_type')}\n"
+        f"بازی: {data.get('game')}\n"
+        f"نام: {data.get('name')}\n"
+        f"شماره: {data.get('phone')}\n"
+        f"استان: {data.get('province')}\n"
+        f"شهر: {data.get('city')}\n"
+        f"کد پستی: {data.get('postal_code')}\n"
+        f"آدرس: {data.get('address')}"
+    )
+    await bot.send_photo(ADMIN_ID, file_id, caption=caption)
+    await message.answer("درخواست ثبت شد! ممنون از شما.", reply_markup=types.ReplyKeyboardRemove())
+    save_to_excel(data)
+    await state.finish()
+
+@dp.message_handler(state=OrderForm.sending_photo)
+async def skip_photo(message: types.Message, state: FSMContext):
+    if message.text == "انصراف":
+        await cancel_handler(message, state)
+        return
+        
+    data = await state.get_data()
+    text = (
+        f"درخواست جدید:\n"
+        f"نوع: {data.get('order_type')}\n"
+        f"بازی: {data.get('game')}\n"
+        f"نام: {data.get('name')}\n"
+        f"شماره: {data.get('phone')}\n"
+        f"استان: {data.get('province')}\n"
+        f"شهر: {data.get('city')}\n"
+        f"کد پستی: {data.get('postal_code')}\n"
+        f"آدرس: {data.get('address')}"
+    )
+    await bot.send_message(ADMIN_ID, text)
+    await message.answer("درخواست ثبت شد! ممنون از شما.", reply_markup=types.ReplyKeyboardRemove())
+    save_to_excel(data)
+    await state.finish()
+
+@dp.message_handler(lambda msg: msg.text == "انصراف", state="*")
+async def cancel_handler(message: types.Message, state: FSMContext):
+    await message.answer("فرآیند لغو شد. برای شروع دوباره /start رو بزن.", reply_markup=types.ReplyKeyboardRemove())
+    await state.finish()
+
+def save_to_excel(data):
+    file_path = "orders.xlsx"
+    if os.path.exists(file_path):
+        wb = load_workbook(file_path)
+        ws = wb.active
