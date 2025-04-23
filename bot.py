@@ -7,8 +7,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from openpyxl import Workbook, load_workbook
 import os
 
-API_TOKEN = 'YOUR_BOT_TOKEN'
-ADMIN_ID = YOUR_ADMIN_ID
+API_TOKEN = '7895495605:AAFxv2IAfDEJnor0U5KZ3i7qn5R4XNPeiFk'
+ADMIN_ID = 132035351
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
