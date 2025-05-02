@@ -8,8 +8,8 @@ from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-API_TOKEN = ' 5033502116:AAEhj3j8rE0gBGmQ0amXH9HEWy10XXF1NvQ'
-ADMIN_ID =  132035351
+API_TOKEN = '5033502116:AAEhj3j8rE0gBGmQ0amXH9HEWy10XXF1NvQ'
+ADMIN_ID = 123456789  # Replace with your admin ID
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
@@ -22,14 +22,12 @@ class OrderState(StatesGroup):
     start = State()
     choose_type = State()
     choose_game = State()
-    choose_additional = State()
     enter_name = State()
     enter_phone = State()
     enter_city = State()
     enter_postcode = State()
     enter_address = State()
     enter_problem_photo = State()
-    confirm = State()
 
 main_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 main_kb.add(KeyboardButton("سفارش جدید"), KeyboardButton("مشکل در سفارش"))
@@ -105,12 +103,12 @@ async def get_postcode(message: types.Message, state: FSMContext):
 @dp.message_handler(state=OrderState.enter_address)
 async def get_address(message: types.Message, state: FSMContext):
     data = await state.get_data()
+    await state.update_data(address=message.text)
+    
     if data["order_type"] == "مشکل در سفارش":
         await message.answer("لطفاً یک عکس از مشکل ارسال کنید", reply_markup=cancel_kb)
-        await state.update_data(address=message.text)
         await OrderState.enter_problem_photo.set()
     else:
-        await state.update_data(address=message.text)
         await finish_and_save(message, state)
 
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=OrderState.enter_problem_photo)
@@ -118,11 +116,13 @@ async def get_problem_photo(message: types.Message, state: FSMContext):
     await state.update_data(photo=message.photo[-1].file_id)
     await finish_and_save(message, state)
 
+@dp.message_handler(state=OrderState.enter_problem_photo)
+async def handle_invalid_photo(message: types.Message):
+    await message.answer("لطفاً یک عکس ارسال کنید.")
+
 async def finish_and_save(message: types.Message, state: FSMContext):
     data = await state.get_data()
-
-    # ذخیره در اکسل
-    df = pd.DataFrame([{
+    df_data = {
         "نوع": data["order_type"],
         "بازی": data["game"],
         "نام": data["name"],
@@ -130,23 +130,39 @@ async def finish_and_save(message: types.Message, state: FSMContext):
         "استان": data["city"],
         "کد پستی": data["postcode"],
         "آدرس": data["address"]
-    }])
-
+    }
+    
+    # Append photo file_id if present
+    if "photo" in data:
+        df_data["عکس"] = data["photo"]
+    
+    df = pd.DataFrame([df_data])
+    
     if os.path.exists(data_file):
-        old = pd.read_excel(data_file)
-        df = pd.concat([old, df], ignore_index=True)
-
+        old_df = pd.read_excel(data_file)
+        df = pd.concat([old_df, df], ignore_index=True)
+    
     df.to_excel(data_file, index=False)
-
-    # ارسال به ادمین
-    await bot.send_message(ADMIN_ID, f"درخواست جدید:\n\n{data}")
+    
+    # Notify admin
+    admin_text = (
+        f"درخواست جدید:\n\n"
+        f"نوع: {data['order_type']}\n"
+        f"بازی: {data['game']}\n"
+        f"نام: {data['name']}\n"
+        f"شماره: {data['phone']}\n"
+        f"استان: {data['city']}\n"
+        f"کد پستی: {data['postcode']}\n"
+        f"آدرس: {data['address']}"
+    )
+    await bot.send_message(ADMIN_ID, admin_text)
+    
     if "photo" in data:
         await bot.send_photo(ADMIN_ID, data["photo"])
-
+    
     await bot.send_document(ADMIN_ID, InputFile(data_file))
-    await message.answer("درخواست ثبت شد. ممنون از شما", reply_markup=main_kb)
+    await message.answer("درخواست شما ثبت شد. با تشکر!", reply_markup=main_kb)
     await state.finish()
 
 if __name__ == '__main__':
-    from aiogram import executor
     executor.start_polling(dp, skip_updates=True)
