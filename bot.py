@@ -8,7 +8,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-API_TOKEN = '5033502116:AAEhj3j8rE0gBGmQ0amXH9HEWy10XXF1NvQ'
+API_TOKEN = '7984419385:AAHCEermgzxAHRRHPsLvDUIu7iYoe2NHtxI'
 ADMIN_ID = 132035351  # آیدی عددی ادمین (ربات باید قبلاً بهش پیام داده باشه)
 
 logging.basicConfig(level=logging.INFO)
